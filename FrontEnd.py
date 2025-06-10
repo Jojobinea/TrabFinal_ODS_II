@@ -21,37 +21,57 @@ with open("EduQuiz_ABI.json", "r") as file:
 
 contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=abi)
 
-st.title("🎓 EduQuiz Web3 – Quiz Final")
+# --- Inicializar sessão ---
+if 'current_question' not in st.session_state:
+    st.session_state.current_question = 0
+if 'user_answers' not in st.session_state:
+    st.session_state.user_answers = []
+
+# --- Layout ---
+st.title("🎓 EduQuiz Web3 – Quiz Interativo")
 st.write(f"👛 Conectado como: `{address}`")
 
-# --- Obter perguntas do contrato ---
+# --- Obter perguntas ---
 questions = contract.functions.getQuestions().call()
 
-st.subheader("🧠 Responda todas as perguntas:")
+if st.session_state.current_question < len(questions):
+    q_index = st.session_state.current_question
+    pergunta = questions[q_index]
+    
+    st.subheader(f"🧠 Pergunta {q_index+1} de {len(questions)}:")
+    resposta = st.text_input(f"{pergunta}", key=f"resposta_{q_index}")
+    
+    if st.button("Responder"):
+        if resposta.strip() == "":
+            st.warning("❗ Por favor, insira uma resposta antes de continuar.")
+        else:
+            st.session_state.user_answers.append(resposta)
+            st.session_state.current_question += 1
+            st.rerun()
+else:
+    st.success("🎉 Todas as perguntas foram respondidas!")
 
-user_answers = []
-for idx, q in enumerate(questions):
-    resposta = st.text_input(f"Q{idx+1}: {q}", key=f"resp_{idx}")
-    user_answers.append(resposta)
+    if st.button("📤 Enviar Respostas"):
+        try:
+            nonce = w3.eth.get_transaction_count(address)
+            tx = contract.functions.answerBatch(st.session_state.user_answers).build_transaction({
+                'from': address,
+                'nonce': nonce,
+                'gas': 400000,
+                'gasPrice': w3.to_wei('5', 'gwei')
+            })
 
-if st.button("Enviar Respostas"):
-    try:
-        # Preparar transação
-        nonce = w3.eth.get_transaction_count(address)
-        tx = contract.functions.answerBatch(user_answers).build_transaction({
-            'from': address,
-            'nonce': nonce,
-            'gas': 400000,
-            'gasPrice': w3.to_wei('5', 'gwei')
-        })
+            signed_tx = account.sign_transaction(tx)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            st.success(f"✅ Respostas enviadas! Transação: {tx_hash.hex()}")
 
-        signed_tx = account.sign_transaction(tx)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        st.success(f"✅ Respostas enviadas! Transação: {tx_hash.hex()}")
-    except Exception as e:
-        st.error(f"Erro ao enviar respostas: {e}")
+            # Resetar sessão após envio
+            st.session_state.current_question = 0
+            st.session_state.user_answers = []
+        except Exception as e:
+            st.error(f"Erro ao enviar respostas: {e}")
 
-# Mostrar saldo final
+# --- Mostrar saldo ---
 balance = w3.eth.get_balance(address)
 eth_balance = w3.from_wei(balance, 'ether')
 st.info(f"💰 Seu saldo atual: {eth_balance:.5f} SepoliaETH")

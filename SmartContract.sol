@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+
+//["Qual é a capital da França?", "Quantos planetas existem no Sistema Solar?", "Quem desenvolveu a Teoria da Relatividade?", "Que cor resulta da mistura de azul com amarelo?", "Quanto é 9 x 7?"], ["Paris", "8", "Einstein", "Verde", "63"]
+
 pragma solidity ^0.8.0;
 
 contract EduQuiz {
