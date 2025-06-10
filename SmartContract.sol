@@ -3,44 +3,62 @@ pragma solidity ^0.8.0;
 
 contract EduQuiz {
     address public owner;
-    string public question;
-    bytes32 private answerHash;
+    string[] public questions;
+    bytes32[] private answersHash;
 
     event AnswerAttempt(address indexed player, string answer, bool correct);
     event RewardSent(address indexed to, uint256 amount);
 
-    constructor(string memory _question, string memory _answer) payable {
+    constructor(string[] memory _questions, string[] memory _answers) payable {
+        require(_questions.length == _answers.length, "Perguntas e respostas nao coincidem.");
         owner = msg.sender;
-        question = _question;
-        answerHash = keccak256(abi.encodePacked(_answer));
+
+        for (uint256 i = 0; i < _questions.length; i++) {
+            questions.push(_questions[i]);
+            answersHash.push(keccak256(abi.encodePacked(_answers[i])));
+        }
     }
 
-    function getQuestion() public view returns (string memory) {
-        return question;
+    function getQuestions() public view returns (string[] memory) {
+        return questions;
     }
 
-    function answer(string memory _answer) public {
-        bool correct = keccak256(abi.encodePacked(_answer)) == answerHash;
-        emit AnswerAttempt(msg.sender, _answer, correct);
+    function answerBatch(string[] memory answers) public {
+        require(answers.length == questions.length, "Numero incorreto de respostas.");
 
-        require(correct, "Wrong answer");
-        require(address(this).balance >= 0.0003 ether, "Not enough reward");
+        uint256 correctCount = 0;
 
-        // Pagar o jogador que respondeu corretamente
-        payable(msg.sender).transfer(0.0003 ether);
-        emit RewardSent(msg.sender, 0.0003 ether);
+        for (uint256 i = 0; i < answers.length; i++) {
+            bool correct = keccak256(abi.encodePacked(answers[i])) == answersHash[i];
+            emit AnswerAttempt(msg.sender, answers[i], correct);
+            if (correct) {
+                correctCount++;
+            }
+        }
+
+        uint256 reward = correctCount * 0.001 ether;
+        require(address(this).balance >= reward, "Contrato sem saldo suficiente.");
+
+        if (reward > 0) {
+            payable(msg.sender).transfer(reward);
+            emit RewardSent(msg.sender, reward);
+        }
     }
 
-    // Permite que qualquer pessoa envie ETH ao contrato
-    receive() external payable {}
+    function checkAnswers(string[] memory answers) public view returns (bool[] memory) {
+        require(answers.length == questions.length, "Numero incorreto de respostas.");
+        bool[] memory result = new bool[](answers.length);
 
-    // Verifica resposta sem executar pagamento
-    function checkAnswer(string memory _answer) public view returns (bool) {
-        return keccak256(abi.encodePacked(_answer)) == answerHash;
+        for (uint256 i = 0; i < answers.length; i++) {
+            result[i] = (keccak256(abi.encodePacked(answers[i])) == answersHash[i]);
+        }
+
+        return result;
     }
 
-    // Ver saldo do contrato (em Wei)
     function getBalance() public view returns (uint256) {
         return address(this).balance;
     }
+
+    receive() external payable {}
 }

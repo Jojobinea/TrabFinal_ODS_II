@@ -6,44 +6,52 @@ from dotenv import load_dotenv
 
 # --- Carregar variáveis ---
 load_dotenv()
-PRIVATE_KEY = os.getenv("PRIVATE_KEY")        # Conta do aluno
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 INFURA_URL = os.getenv("INFURA_URL")
 CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS")
 
-# --- Conexão com a blockchain ---
+# --- Conectar à blockchain ---
 w3 = Web3(Web3.HTTPProvider(INFURA_URL))
 account = w3.eth.account.from_key(PRIVATE_KEY)
 address = account.address
 
-# --- Carregar ABI do contrato ---
+# --- Carregar ABI ---
 with open("EduQuiz_ABI.json", "r") as file:
     abi = json.load(file)
 
 contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=abi)
 
-# --- Interface Streamlit ---
-st.title("🎓 EduQuiz Web3 – Aluno")
+st.title("🎓 EduQuiz Web3 – Quiz Final")
 st.write(f"👛 Conectado como: `{address}`")
 
-# --- Obter pergunta do contrato ---
-question = contract.functions.getQuestion().call()
-st.subheader("🧠 Pergunta do dia:")
-st.write(f"**{question}**")
+# --- Obter perguntas do contrato ---
+questions = contract.functions.getQuestions().call()
 
-resposta = st.text_input("Digite sua resposta:")
+st.subheader("🧠 Responda todas as perguntas:")
 
-if st.button("Enviar resposta"):
+user_answers = []
+for idx, q in enumerate(questions):
+    resposta = st.text_input(f"Q{idx+1}: {q}", key=f"resp_{idx}")
+    user_answers.append(resposta)
+
+if st.button("Enviar Respostas"):
     try:
+        # Preparar transação
         nonce = w3.eth.get_transaction_count(address)
-        tx = contract.functions.answer(resposta).build_transaction({
+        tx = contract.functions.answerBatch(user_answers).build_transaction({
             'from': address,
             'nonce': nonce,
-            'gas': 200000,
+            'gas': 400000,
             'gasPrice': w3.to_wei('5', 'gwei')
         })
 
-        signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        st.success(f"✅ Resposta enviada! Transação: {tx_hash.hex()}")
+        signed_tx = account.sign_transaction(tx)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        st.success(f"✅ Respostas enviadas! Transação: {tx_hash.hex()}")
     except Exception as e:
-        st.error(f"Erro ao enviar resposta: {e}")
+        st.error(f"Erro ao enviar respostas: {e}")
+
+# Mostrar saldo final
+balance = w3.eth.get_balance(address)
+eth_balance = w3.from_wei(balance, 'ether')
+st.info(f"💰 Seu saldo atual: {eth_balance:.5f} SepoliaETH")
