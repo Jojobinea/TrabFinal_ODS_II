@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Confirmar Transação</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+</head>
+<body>
+  <h2>📤 Confirmar Envio de Recompensa</h2>
+  <p id="status">⏳ Aguardando confirmação...</p>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const answers = JSON.parse(decodeURIComponent(urlParams.get("answers") || "[]"));
+    const contractAddress = urlParams.get("address");
+    const userAccount = urlParams.get("account");
+
+    const abi = [
+      {
+        "inputs": [{"internalType": "string[]", "name": "answers", "type": "string[]"}],
+        "name": "answerBatch",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      }
+    ];
+
+    async function switchToSepolia() {
+      const sepolia = {
+        chainId: "0xaa36a7",
+        chainName: "Sepolia Testnet",
+        nativeCurrency: {
+          name: "SepoliaETH",
+          symbol: "SepoliaETH",
+          decimals: 18
+        },
+        rpcUrls: ["https://rpc.sepolia.org"],
+        blockExplorerUrls: ["https://sepolia.etherscan.io"]
+      };
+      try {
+        await ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: sepolia.chainId }]
+        });
+      } catch (err) {
+        if (err.code === 4902) {
+          await ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [sepolia]
+          });
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    async function send() {
+      const status = document.getElementById("status");
+
+      if (typeof window.ethereum === "undefined") {
+        status.innerText = "MetaMask não detectada.";
+        return;
+      }
+
+      try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        await switchToSepolia();
+
+        const signer = provider.getSigner();
+        const contract = new ethers.Contract(contractAddress, abi, signer);
+        const tx = await contract.answerBatch(answers);
+        status.innerText = "✅ Transação enviada: " + tx.hash;
+      } catch (e) {
+        console.error(e);
+        status.innerText = "Erro: " + e.message;
+      }
+    }
+
+    send();
+  </script>
+</body>
+</html>
