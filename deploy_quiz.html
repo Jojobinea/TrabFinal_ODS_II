@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Implantar EduQuiz</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+</head>
+<body>
+  <h2>🚀 Implantar EduQuiz</h2>
+  <p id="status">⏳ Preparando...</p>
+
+  <script>
+    const status = document.getElementById("status");
+
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const raw = urlParams.get("data");
+      if (!raw) throw new Error("Parâmetro 'data' ausente.");
+
+      const decoded = JSON.parse(decodeURIComponent(raw));
+      const questions = decoded.questions;
+      const answers = decoded.answers;
+      const rewardPerCorrectEth = parseFloat(decoded.reward || "0.01");
+      const totalDepositEth = parseFloat(decoded.total || "0.1");
+
+      if (!Array.isArray(questions) || !Array.isArray(answers) || questions.length !== answers.length) {
+        throw new Error("Perguntas e respostas inválidas.");
+      }
+
+      const rewardWei = ethers.utils.parseEther(rewardPerCorrectEth.toString());
+      const totalWei = ethers.utils.parseEther(totalDepositEth.toString());
+
+      // 👉 Substitua {{ABI}} e {{BYTECODE}} abaixo:
+      // @ts-ignore
+      const abi = {{ABI}};
+      const bytecode = "{{BYTECODE}}";
+
+      console.log("Perguntas:", questions);
+      console.log("Respostas:", answers);
+      console.log("Valor por acerto:", rewardPerCorrectEth, "ETH");
+      console.log("Valor total a depositar:", totalDepositEth, "ETH");
+
+      async function deploy() {
+        if (!window.ethereum) {
+          status.innerText = "❌ MetaMask não detectada.";
+          return;
+        }
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+
+        status.innerText = "🚀 Implantando contrato...";
+
+        const factory = new ethers.ContractFactory(abi, bytecode, signer);
+        const contract = await factory.deploy(questions, answers, rewardWei, {
+          value: totalWei
+        });
+
+        await contract.deployed();
+        status.innerText = "✅ Contrato implantado: " + contract.address;
+      }
+
+      deploy();
+    } catch (err) {
+      console.error("Erro no carregamento:", err);
+      status.innerText = "❌ Erro: " + err.message;
+    }
+  </script>
+</body>
+</html>
